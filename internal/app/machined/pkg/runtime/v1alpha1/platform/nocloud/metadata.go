@@ -89,6 +89,7 @@ type Ethernet struct {
 		Via    string `yaml:"via,omitempty"`
 		Metric string `yaml:"metric,omitempty"`
 		Table  uint32 `yaml:"table,omitempty"`
+		OnLink bool   `yaml:"on-link,omitempty"`
 	} `yaml:"routes,omitempty"`
 	RoutingPolicy []struct { // TODO
 		From  string `yaml:"froom,omitempty"`
@@ -542,7 +543,7 @@ func applyNetworkConfigV2Ethernet(name string, eth Ethernet, networkConfig *runt
 			return fmt.Errorf("failed to parse route destination: %w", err)
 		}
 
-		route := network.RouteSpecSpec{
+		routeSpec := network.RouteSpecSpec{
 			ConfigLayer: network.ConfigPlatform,
 			Destination: dest,
 			Gateway:     gw,
@@ -555,13 +556,36 @@ func applyNetworkConfigV2Ethernet(name string, eth Ethernet, networkConfig *runt
 		}
 
 		if gw.Is6() {
-			route.Family = nethelpers.FamilyInet6
-			route.Priority = 2 * network.DefaultRouteMetric
+			routeSpec.Family = nethelpers.FamilyInet6
+			routeSpec.Priority = 2 * network.DefaultRouteMetric
 		}
 
-		route.Normalize()
+		routeSpec.Normalize()
 
-		networkConfig.Routes = append(networkConfig.Routes, route)
+		networkConfig.Routes = append(networkConfig.Routes, routeSpec)
+
+		if route.OnLink && gw.Is4() {
+			// This assumes an interface with multiple routes will never have mutliple statically set ips.
+			ipPrefix, err := netip.ParsePrefix(eth.Address[0])
+			if err != nil {
+				return fmt.Errorf("failed to parse route source: %w", err)
+			}
+
+			routeSpec := network.RouteSpecSpec{
+				ConfigLayer: network.ConfigPlatform,
+				Destination: netip.PrefixFrom(gw, gw.BitLen()),
+				Source:      ipPrefix.Addr(),
+				OutLinkName: name,
+				Scope:       nethelpers.ScopeLink,
+				Table:       nethelpers.RoutingTable(route.Table),
+				Protocol:    nethelpers.ProtocolStatic,
+				Type:        nethelpers.TypeUnicast,
+				Family:      nethelpers.FamilyInet4,
+				Priority:    network.DefaultRouteMetric,
+			}
+			networkConfig.Routes = append(networkConfig.Routes, routeSpec)
+		}
+
 	}
 
 	return nil
