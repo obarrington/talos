@@ -565,7 +565,7 @@ func applyNetworkConfigV2Ethernet(name string, eth Ethernet, networkConfig *runt
 		networkConfig.Routes = append(networkConfig.Routes, routeSpec)
 
 		if route.OnLink && gw.Is4() {
-			// This assumes an interface with multiple routes will never have mutliple statically set ips.
+			// This assumes an interface with multiple routes will never have multiple statically set ips.
 			ipPrefix, err := netip.ParsePrefix(eth.Address[0])
 			if err != nil {
 				return fmt.Errorf("failed to parse route source: %w", err)
@@ -585,7 +585,6 @@ func applyNetworkConfigV2Ethernet(name string, eth Ethernet, networkConfig *runt
 			}
 			networkConfig.Routes = append(networkConfig.Routes, routeSpec)
 		}
-
 	}
 
 	return nil
